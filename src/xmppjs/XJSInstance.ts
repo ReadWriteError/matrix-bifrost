@@ -119,7 +119,7 @@ export class XmppJsInstance extends EventEmitter implements IBifrostInstance {
 
     public xmppWriteToStream(xmlMsg: any) {
         if (this.canWrite) {
-            return this.xmpp.write(xmlMsg);
+            return this.xmpp.write(xmlMsg.toString());
         }
         const p = new Promise((resolve) => {
             this.bufferedMessages.push({xmlMsg, resolve});
