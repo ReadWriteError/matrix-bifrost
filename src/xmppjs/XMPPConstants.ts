@@ -17,4 +17,7 @@ export enum XMPPFeatures {
     IqSearch = "jabber:iq:search",
     MessageCorrection = "urn:xmpp:message-correct:0",
     XHTMLIM = "http://jabber.org/protocol/xhtml-im",
+    JingleRTP = "urn:xmpp:jingle:apps:rtp:1",
+    JingleRTPAudio = "urn:xmpp:jingle:apps:rtp:audio",
+    JingleRTPVideo = "urn:xmpp:jingle:apps:rtp:video",
 }

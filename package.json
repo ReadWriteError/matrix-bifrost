@@ -36,6 +36,7 @@
     "fast-xml-parser": "^3.17.4",
     "html-entities": "^2.3.2",
     "htmlparser2": "^6.1.0",
+    "stanza": "^12.17.1",
     "leven": "^3.1.0",
     "marked": "^2.1.3",
     "matrix-appservice-bridge": "^2.7.0",

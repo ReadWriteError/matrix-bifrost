@@ -15,6 +15,7 @@ import { IEventBody,
     IChatReadReceipt,
     IGatewayPublicRoomsQuery,
     IChatJoinProperties,
+    ICallInvite,
 } from "./Events";
 import { EventEmitter } from "events";
 import { IGateway } from "./Gateway";
@@ -47,6 +48,7 @@ export interface IBifrostInstance extends EventEmitter {
     on(name: "gateway-publicrooms", cb: (ev: IGatewayPublicRoomsQuery) => void);
     on(name: "chat-typing"|"im-typing", cb: (ev: IChatTyping) => void);
     on(name: "received-im-msg"|"received-chat-msg", cb: (ev: IReceivedImMsg) => void);
+    on(name: "call-invite", cb: (ev: ICallInvite) => void);
     on(name: "store-remote-user", cb: (ev: IStoreRemoteUser) => void);
     on(name: "read-receipt", cb: (ev: IChatReadReceipt) => void);
     eventAck(eventName: string, data: IEventBody);

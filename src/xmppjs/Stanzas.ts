@@ -3,6 +3,12 @@ import { v4 as uuid } from "uuid";
 import * as he from "html-entities";
 import { IBasicProtocolMessage } from "../MessageFormatter";
 import { XMPPFeatures, XMPPStatusCode } from "./XMPPConstants";
+import { importFromSDP } from "stanza/jingle/sdp/Intermediate";
+import { convertIntermediateToRequest } from "stanza/jingle/sdp/Protocol";
+import { JingleAction, JingleSessionRole } from "stanza/Constants";
+import { JXT } from "stanza";
+import { Jingle } from "stanza/protocol";
+import Protocol from "stanza/protocol";
 
 function encode(text) {
     return he.encode(text, { level: "xml", mode: "nonAscii"});
@@ -464,5 +470,52 @@ export class StzaIqVcardRequest extends StzaBase {
         return `<iq from='${this.from}' to='${this.to}' id='${this.id}' type='get'>` +
             "<vCard xmlns='vcard-temp'/>" +
         "</iq>";
+    }
+}
+
+export abstract class StzaIqCall extends StzaBase {
+    constructor(
+        from: string,
+        to: string,
+        id?: string
+    ) {
+        id = id || uuid();
+        super(from, to, id);
+    }
+
+    get type(): string {
+        return "iq";
+    }
+}
+export class StzaIqCallInvite extends StzaIqCall {
+    constructor(
+        from: string,
+        to: string,
+        public call_id: string,
+        public offer_sdp: string,
+        id?: string
+    ) {
+        super(from, to, id);
+    }
+
+    get xml(): string {
+        var offer = importFromSDP(this.offer_sdp);
+        var jingle = convertIntermediateToRequest(offer, JingleSessionRole.Initiator, "urn:xmpp:jingle:transports:ice-udp:1");
+        jingle.action = JingleAction.SessionInitiate;
+        jingle.initiator = this.from;
+        jingle.sid = this.call_id;
+        var json = {
+            id: this.id,
+            jingle: jingle as Jingle,
+            to: this.to,
+            from: this.from,
+            type: "set"
+        };
+
+        var registry = new JXT.Registry();
+
+        registry.define(Protocol);
+
+        return registry.export('iq', json).toString();
     }
 }

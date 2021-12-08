@@ -110,3 +110,17 @@ export interface IStoreRemoteUser {
     protocol_id: string;
     data?: any;
 }
+
+export interface ICallInvite extends IConversationEvent {
+    id: string;
+    sender: string;
+    content: {
+        call_id: string;
+        lifetime: number;
+        offer: {
+            sdp: string;
+            type: "offer";
+        };
+        version: number;
+    };
+}
