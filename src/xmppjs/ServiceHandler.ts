@@ -37,6 +37,9 @@ export class ServiceHandler {
         this.discoInfo.feature.add(XMPPFeatures.Muc);
         this.discoInfo.feature.add(XMPPFeatures.IqVersion);
         this.discoInfo.feature.add(XMPPFeatures.IqSearch);
+        this.discoInfo.feature.add(XMPPFeatures.JingleRTP);
+        this.discoInfo.feature.add(XMPPFeatures.JingleRTPAudio);
+        this.discoInfo.feature.add(XMPPFeatures.JingleRTPVideo);
     }
 
     public parseAliasFromJID(to: JID): string|null {

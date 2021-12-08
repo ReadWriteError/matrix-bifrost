@@ -1,7 +1,7 @@
 /* eslint-disable max-classes-per-file */
 import { EventEmitter } from "events";
 import { Logging, MatrixUser, Bridge } from "matrix-appservice-bridge";
-import { Element } from "@xmpp/xml";
+import { Element, x } from "@xmpp/xml";
 import { jid, JID } from "@xmpp/jid";
 import { IBifrostInstance } from "../bifrost/Instance";
 import { Config } from "../Config";
@@ -12,6 +12,7 @@ import { IBifrostAccount } from "../bifrost/Account";
 import { IAccountEvent,
     IChatJoined,
     IReceivedImMsg,
+    ICallInvite,
     IUserStateChanged,
     IChatTyping,
     IStoreRemoteUser,
@@ -29,6 +30,12 @@ import { XmppJsGateway } from "./XJSGateway";
 import { IStza, StzaBase, StzaIqDisco, StzaIqDiscoInfo, StzaIqPing, StzaIqPingError, StzaIqVcardRequest } from "./Stanzas";
 import { Util } from "../Util";
 import { v4 as uuid } from "uuid";
+import { convertRequestToIntermediate } from "stanza/jingle/sdp/Protocol";
+import { exportToSDP } from "stanza/jingle/sdp/Intermediate";
+import { JingleSessionRole } from "stanza/Constants";
+import { JXT } from "stanza";
+import { Jingle } from "stanza/protocol";
+import Protocol from "stanza/protocol";
 
 const xLog = Logging.get("XMPP-conn");
 const log = Logging.get("XmppJsInstance");
@@ -482,6 +489,11 @@ export class XmppJsInstance extends EventEmitter implements IBifrostInstance {
             log.warn("Not handling gateway request, gateways are disabled");
         }
         try {
+            if (!alias && stanza.getChild("jingle")?.getAttr("action") === "session-initiate") {
+                this.handleMessageStanza(stanza, null)
+                return;
+            }
+
             if (isOurs) {
                 if (stanza.is("iq") && ["get", "set"].includes(stanza.getAttr("type"))) {
                     await this.serviceHandler.handleIq(stanza, this.bridge.getIntent());
@@ -715,6 +727,30 @@ export class XmppJsInstance extends EventEmitter implements IBifrostInstance {
             } as IChatTopicState);
         }
 
+        if (stanza.getChild("jingle")) {
+            if (stanza.getChild("jingle").getAttr("action") === "session-initiate") {
+                return this.handleCallInvite(stanza, localAcct, from, convName)
+            }
+            log.debug("Unknown jingle action");
+            return;
+        }
+
+        const propose = stanza.getChildByAttr("xmlns", "urn:xmpp:jingle-message:0");
+        // always accept requests to start a session
+        if (propose) {
+            this.xmppWriteToStream(
+                x("message", {
+                    to: from.toString(),
+                    from: to.toString(),
+                }, x("proceed", {
+                    xmlns: "urn:xmpp:jingle-message:0",
+                    id: propose.attrs.id,
+                },
+                ),
+                ));
+            return;
+        }
+
         const body = stanza.getChild("body");
         if (!body) {
             log.debug("Don't know how to handle a message without children");
@@ -943,5 +979,37 @@ export class XmppJsInstance extends EventEmitter implements IBifrostInstance {
 
     private get canWrite(): boolean {
         return this.xmpp?.status === 'online';
+    }
+
+    private handleCallInvite(stanza: Element, localAcct: XmppJsAccount, from: JID, convName: string) {
+        var registry = new JXT.Registry();
+
+        registry.define(Protocol);
+
+        var jingle: Jingle = {
+            ... registry.import(JXT.parse(stanza.toString())),
+            sid: stanza.getChild("jingle").getAttr("sid")
+        }
+
+        var sdp: string = exportToSDP(convertRequestToIntermediate(jingle, JingleSessionRole.Responder));
+
+        this.emit("call-invite", {
+            eventName: "call-invite",
+            id: stanza.attrs.id,
+            sender: `${from.local ? from.local + "@" : ""}${from.domain}`,
+            account: {
+                protocol_id: XMPP_PROTOCOL.id,
+                username: localAcct.remoteId,
+            },
+            content: {
+                call_id: jingle.sid,
+                lifetime: 25000,
+                offer: {
+                    sdp: sdp,
+                    type: "offer"
+                },
+                version: 0
+            }
+        } as ICallInvite);
     }
 }

@@ -3,6 +3,7 @@ import { IBifrostInstance } from "./bifrost/Instance";
 import { MROOM_TYPE_GROUP, MROOM_TYPE_IM, IRemoteGroupData, MUSER_TYPE_GHOST } from "./store/Types";
 import {
     IReceivedImMsg,
+    ICallInvite,
     IChatInvite,
     IChatJoined,
     IConversationEvent,
@@ -89,6 +90,7 @@ export class MatrixRoomHandler {
         });
         this.remoteEventIdMapping = new Map();
         purple.on("read-receipt", this.handleReadReceipt.bind(this));
+        purple.on("call-invite", this.handleCallInvite.bind(this));
     }
 
     /**
@@ -134,7 +136,7 @@ export class MatrixRoomHandler {
         return null;
     }
 
-    private async createOrGetIMRoom(data: IReceivedImMsg, matrixUser: MatrixUser, intent: Intent): Promise<string> {
+    private async createOrGetIMRoom(data: IReceivedImMsg|ICallInvite, matrixUser: MatrixUser, intent: Intent): Promise<string> {
         const existingRoomId = await this.getIMRoomId(data, matrixUser);
         if (existingRoomId) {
             return existingRoomId;
@@ -596,5 +598,66 @@ export class MatrixRoomHandler {
         }
         await intent.sendReadReceipt(roomId, eventId);
         log.debug(`Updated read reciept for ${userId} in ${roomId}`);
+    }
+
+    private async handleCallInvite(data: ICallInvite) {
+        if (!this.bridge) {
+            throw Error("Couldn't handleCallInvite, bridge was not defined");
+        }
+        log.debug(`Handling incoming Call from ${data.sender}`);
+        // First, find out who the message was intended for.
+        const matrixUser = await this.store.getMatrixUserForAccount(data.account);
+        if (matrixUser === null) {
+            return;
+        }
+        const protocol = this.purple.getProtocol(data.account.protocol_id);
+        if (!protocol) {
+            log.error(`Unknown protocol ${data.account.protocol_id}. Bailing`);
+            return;
+        }
+        log.debug(`Call intended for ${matrixUser.getId()}`);
+        const senderMatrixUser = protocol.getMxIdForProtocol(
+            data.sender,
+            this.config.bridge.domain,
+            this.config.bridge.userPrefix,
+        );
+
+        // Update the user if needed.
+        const account = this.purple.getAccount(data.account.username, data.account.protocol_id, matrixUser.getId());
+        if (account) {
+            await this.profileSync.updateProfile(protocol, data.sender, account);
+        }
+
+        const intent = this.bridge.getIntent(senderMatrixUser.getId());
+        log.debug("Identified ghost user as", senderMatrixUser.getId());
+        let roomId: string;
+        try {
+            roomId = await this.createOrGetIMRoom(data, matrixUser, intent);
+        } catch (e) {
+            log.error(`Failed to get/create room for this Call: ${e}`);
+            return;
+        }
+
+        try {
+            await intent.join(roomId);
+        } catch (ex) {
+            log.warn("Not joined to room, discarding " + roomId);
+            await this.store.removeRoomByRoomId(roomId);
+            roomId = await this.createOrGetIMRoom(data, matrixUser, intent);
+        }
+
+        log.info(`Sending Call to ${roomId} as ${senderMatrixUser.getId()}`);
+        const {event_id} = await intent.sendEvent(roomId, "m.call.invite", data.content) as { event_id: string };
+        if (data.id) {
+            this.remoteEventIdMapping.set(data.id, event_id);
+            // Remove old entires.
+            if (this.remoteEventIdMapping.size >= EVENT_MAPPING_SIZE) {
+                const keyArr = [...this.remoteEventIdMapping.keys()].slice(0, 50);
+                keyArr.forEach(this.remoteEventIdMapping.delete.bind(this.remoteEventIdMapping));
+            }
+            await this.store.storeRoomEvent(roomId, event_id, data.id).catch((ev) => {
+                log.warn("Failed to store event mapping:", ev);
+            });
+        }
     }
 }
