@@ -11,7 +11,7 @@ import { Metrics } from "../Metrics";
 import { Logging } from "matrix-appservice-bridge";
 import { v4 as uuid } from "uuid";
 import { XHTMLIM } from "./XHTMLIM";
-import { StzaMessage, StzaIqPing, StzaPresenceJoin, StzaPresencePart, StzaIqVcardRequest } from "./Stanzas";
+import { StzaMessage, StzaIqPing, StzaPresenceJoin, StzaPresencePart, StzaIqVcardRequest, StzaIqCallInvite } from "./Stanzas";
 
 const IDPREFIX = "pbridge";
 const CONFLICT_SUFFIX = "[m]";
@@ -376,5 +376,28 @@ export class XmppJsAccount implements IBifrostAccount {
     public sendIMTyping() {
         // No-op
         return;
+    }
+
+    public sendCallInvite(recipient: string, callID: string, sdpOffer: string) {
+        // Check if the recipient is a gateway user, because if so we need to do some fancy masking.
+        const res = this.xmpp.gateway ? this.xmpp.gateway.maskPMSenderRecipient(this.mxId, recipient) : null;
+        let sender = `${this.remoteId}/${this.resource}`;
+        if (res) {
+            recipient = res.recipient;
+            sender = res.sender;
+        }
+        log.debug(`Call invite ${sender} -> ${recipient}`);
+        const call = new StzaIqCallInvite(
+            sender,
+            recipient,
+            callID,
+            sdpOffer,
+        );
+        if (!this.pmSessions.has(recipient)) {
+            this.pmSessions.add(recipient);
+        }
+        //this.xmpp.xmppAddSentMessage(msg.id);
+        this.xmpp.xmppSend(call);
+        //Metrics.remoteCall("xmpp.message.chat");
     }
 }

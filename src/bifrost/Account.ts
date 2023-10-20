@@ -42,4 +42,5 @@ export interface IBifrostAccount extends IProfileProvider {
     getConversation(name: string): any|undefined;
     getChatParamsForProtocol(): IChatJoinOptions[];
     setStatus(statusId: string, active: boolean);
+    sendCallInvite(recipient: string, callID: string, sdpOffer: string)
 }
