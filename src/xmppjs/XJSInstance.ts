@@ -732,7 +732,7 @@ export class XmppJsInstance extends EventEmitter implements IBifrostInstance {
 
         if (stanza.getChild("jingle")) {
             if (stanza.getChild("jingle").getAttr("action") === "session-initiate") {
-                return this.handleCallInvite(stanza, localAcct, from, convName)
+                return this.handleCallInvite(stanza, localAcct, from)
             }
             log.debug("Unknown jingle action");
             return;
@@ -984,7 +984,7 @@ export class XmppJsInstance extends EventEmitter implements IBifrostInstance {
         return this.xmpp?.status === 'online';
     }
 
-    private handleCallInvite(stanza: Element, localAcct: XmppJsAccount, from: JID, convName: string) {
+    private handleCallInvite(stanza: Element, localAcct: XmppJsAccount, from: JID) {
         var registry = new JXT.Registry();
 
         registry.define(Protocol);
