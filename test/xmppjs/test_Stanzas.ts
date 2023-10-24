@@ -1,6 +1,7 @@
 import * as Chai from "chai";
 import { StzaPresenceItem, StzaPresenceError, StzaMessageSubject,
-    StzaMessage, StzaPresencePart, StzaPresenceKick, SztaIqError, StzaIqCallInvite } from "../../src/xmppjs/Stanzas";
+    StzaMessage, StzaPresencePart, StzaPresenceKick, SztaIqError, StzaIqDiscoInfo, StzaIqCallInvite } from "../../src/xmppjs/Stanzas";
+import { XMPPFeatures } from "../../src/xmppjs/XMPPConstants";
 import { assertXML } from "./util";
 const expect = Chai.expect;
 
@@ -114,6 +115,7 @@ describe("Stanzas", () => {
              "</error></iq>",
         );
     });
+<<<<<<< HEAD
     describe("StzaIqCallInvite", () => {
         it("should create a valid stanza for a call invitation/initiation", () => {
             const stanza = new StzaIqCallInvite("foo@bar", "baz@bar", "somesessionid",
@@ -208,5 +210,27 @@ describe("Stanzas", () => {
                 + '</iq>'
             );
         });
+=======
+    describe("StzaIqDiscoInfo", () => {
+        it("should create a valid stanza", () => {
+            const xml = new StzaIqDiscoInfo("foo@bar", "baz@bar", "someid").xml;
+            assertXML(xml);
+            expect(xml).to.equal(
+                `<iq from=\'foo@bar\' to=\'baz@bar\' id=\'someid\' type=\'result\'><query xmlns=\'http://jabber.org/protocol/disco#info\'></query></iq>`,
+            );
+        });
+        it("should create a valid hash", () => {
+            const userDiscoInfo = new StzaIqDiscoInfo("foo@bar", "baz@bar", "someid");
+            userDiscoInfo.identity.add({category: "client", type: "bridge", name: "matrix-bifrost"})
+            userDiscoInfo.feature.add(XMPPFeatures.DiscoInfo);
+            userDiscoInfo.feature.add(XMPPFeatures.Jingle);
+            userDiscoInfo.feature.add(XMPPFeatures.JingleFileTransferV4);
+            userDiscoInfo.feature.add(XMPPFeatures.JingleFileTransferV5);
+            userDiscoInfo.feature.add(XMPPFeatures.JingleIBB);
+            userDiscoInfo.feature.add(XMPPFeatures.XHTMLIM);
+            userDiscoInfo.feature.add(XMPPFeatures.ChatStates);
+            expect(userDiscoInfo.hash).to.equal('YvWxpAh3qsnZdItZNak8ruVh+Gs=');
+        })
+>>>>>>> 584eca39d32b841f187b4fb8489ca755f22a454c
     });
 });
