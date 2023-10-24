@@ -8,22 +8,18 @@ import { Element, x } from "@xmpp/xml";
 import { jid, JID } from "@xmpp/jid";
 import { IBasicProtocolMessage } from "../MessageFormatter";
 import { Metrics } from "../Metrics";
-import { Logging } from "matrix-appservice-bridge";
+import { Logger } from "matrix-appservice-bridge";
 import { v4 as uuid } from "uuid";
 import { XHTMLIM } from "./XHTMLIM";
-import { StzaMessage, StzaIqPing, StzaPresenceJoin, StzaPresencePart, StzaIqVcardRequest } from "./Stanzas";
+import { StzaMessage, StzaIqPing, StzaPresenceJoin, StzaPresencePart, StzaIqVcardRequest, StzaPresenceAvailable } from "./Stanzas";
 
 const IDPREFIX = "pbridge";
 const CONFLICT_SUFFIX = "[m]";
 const LASTSTANZA_CHECK_MS = 2 * 60000;
 const LASTSTANZA_MAXDURATION = 10 * 60000;
-const log = Logging.get("XmppJsAccount");
+const log = new Logger("XmppJsAccount");
 
 export class XmppJsAccount implements IBifrostAccount {
-
-    get waitingJoinRoomProps(): undefined {
-        return undefined;
-    }
 
     get name(): string {
         return this.remoteId;
@@ -124,20 +120,6 @@ export class XmppJsAccount implements IBifrostAccount {
         this.xmpp.xmppAddSentMessage(id);
         this.xmpp.xmppSend(xMsg);
         Metrics.remoteCall("xmpp.message.groupchat");
-    }
-
-    public getBuddy(user: string): any|undefined {
-        // TODO: Not implemented
-        return;
-    }
-
-    public getJoinPropertyForRoom(roomName: string, key: string): string|undefined {
-        // TODO: Not implemented
-        return;
-    }
-
-    public setJoinPropertiesForRoom(roomName: string, props: IChatJoinProperties) {
-        // TODO: Not implemented
     }
 
     public isInRoom(roomName: string): boolean {
@@ -309,10 +291,6 @@ export class XmppJsAccount implements IBifrostAccount {
         Metrics.remoteCall("xmpp.presence.left");
     }
 
-    public getConversation(name: string): any {
-        throw Error("getConversation not implemented");
-    }
-
     public getChatParamsForProtocol(): IChatJoinOptions[] {
         return [
             {
@@ -338,7 +316,7 @@ export class XmppJsAccount implements IBifrostAccount {
         const status = this.xmpp.presenceCache.getStatus(who);
         const ui: IUserInfo = {
             Nickname: j.resource || j.local,
-            eventName: "meh",
+            eventName: "-unused-",
             who,
             account: {
                 protocol_id: this.protocol.id,
@@ -368,13 +346,29 @@ export class XmppJsAccount implements IBifrostAccount {
 
     }
 
+    // TODO: Is this the same as setStatus?
+    public setPresence(content: { currently_active?: boolean; last_active_ago?: number; presence: "online" | "offline" | "unavailable"; status_msg?: string; },
+        recipients: string[],
+    ) {
+        log.debug(`Broadcasting presence update ${this.remoteId} ${content.presence} ${recipients.join(', ')}`);
+        // Only allow bare JIDs
+        const xmppRecipients = new Set(recipients.map((r) => jid(r)).filter(r => r.bare().toString() === r.toString()))
+        this.xmpp.xmppSend(
+            [...xmppRecipients].map(r => new StzaPresenceAvailable(
+                this.remoteId, r.toString(), content.presence !== "online" ? "unavailable" : undefined, this.xmpp.serviceHandler.userDiscoHash, content.status_msg
+            ).xml).join('')
+        );
+    }
+
     public setStatus() {
         // No-op
         return;
     }
 
-    public sendIMTyping() {
-        // No-op
+    public sendIMTyping(recipient: string, isTyping: boolean) {
+        const msg = new StzaMessage(this.remoteId, recipient, uuid(), "chat");
+        msg.chatstate = isTyping ? 'composing' : 'inactive';
+        this.xmpp.xmppSend(msg);
         return;
     }
 }
